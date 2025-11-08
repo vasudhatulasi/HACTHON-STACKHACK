@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
+import { api } from "./api";
 export default function AdminLogin() {
   const [form, setForm] = useState({ username: "", password: "", remember: false });
   const [message, setMessage] = useState({ text: "", type: "" });

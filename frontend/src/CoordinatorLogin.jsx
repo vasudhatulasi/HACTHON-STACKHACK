@@ -1,3 +1,4 @@
+// src/components/CoordinatorLogin.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
@@ -7,22 +8,33 @@ export default function CoordinatorLogin() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
+  // ✅ Use deployed API base URL or fallback to localhost
+  const BASE_URL = "https://hacthon-stackhack.onrender.com"; // Change to your backend base
+  // const BASE_URL = "http://localhost:5000"; // (for local testing)
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
     try {
-      const res = await axios.post("http://localhost:5000/coordinator/login", form);
+      const res = await axios.post(`${BASE_URL}/coordinator/login`, form, {
+        headers: { "Content-Type": "application/json" },
+      });
+
       if (res.data.token) {
+        // ✅ Save login info
         localStorage.setItem("username", res.data.username);
-        localStorage.setItem("role", "coordinator");
+        localStorage.setItem("role", "Coordinator");
         localStorage.setItem("token", res.data.token);
+
         alert("✅ Login successful");
         navigate("/coordinatorhome");
       } else {
         setError(res.data.message || "Invalid credentials");
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Server error");
+      console.error("Login error:", err);
+      setError(err.response?.data?.message || "Server error during login");
     }
   };
 
@@ -44,38 +56,37 @@ export default function CoordinatorLogin() {
           overflow: hidden;
         }
 
-       .coordinator-login-page {
-  height: 100vh;
-  width: 100vw;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative;
-  overflow: hidden;
-  background-image: linear-gradient(
-      rgba(0, 0, 0, 0.6),
-      rgba(0, 0, 0, 0.6)
-    ),
-    url("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1920&q=80");
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-  filter: brightness(0.9);
-}
+        .coordinator-login-page {
+          height: 100vh;
+          width: 100vw;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+          overflow: hidden;
+          background-image: linear-gradient(
+            rgba(0, 0, 0, 0.6),
+            rgba(0, 0, 0, 0.6)
+          ),
+          url("https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1920&q=80");
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+          background-attachment: fixed;
+          filter: brightness(0.9);
+        }
 
-/* OPTIONAL: soft blur for aesthetic depth */
-.coordinator-login-page::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  backdrop-filter: blur(8px);
-  z-index: 0;
-}
-        /* === LOGIN CARD === */
+        .coordinator-login-page::after {
+          content: "";
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          backdrop-filter: blur(8px);
+          z-index: 0;
+        }
+
         .login-box {
           position: relative;
           z-index: 2;
@@ -97,16 +108,15 @@ export default function CoordinatorLogin() {
         }
 
         .login-title {
-  font-size: 2.2rem;
-  font-weight: 600;
-  color: #f8f9ff;
-  margin-bottom: 20px;
-  letter-spacing: 1px;
-  text-shadow: 0 0 6px rgba(173, 216, 230, 0.4),
-               0 0 12px rgba(147, 112, 219, 0.35);
-}
+          font-size: 2.2rem;
+          font-weight: 600;
+          color: #f8f9ff;
+          margin-bottom: 20px;
+          letter-spacing: 1px;
+          text-shadow: 0 0 6px rgba(173, 216, 230, 0.4),
+                       0 0 12px rgba(147, 112, 219, 0.35);
+        }
 
-        /* === INPUT FIELDS === */
         .login-input {
           width: 100%;
           padding: 12px 15px;
@@ -129,7 +139,6 @@ export default function CoordinatorLogin() {
           box-shadow: 0 0 12px rgba(180, 220, 255, 0.5);
         }
 
-        /* === LOGIN BUTTON === */
         .login-btn {
           width: 100%;
           padding: 12px;
@@ -150,7 +159,6 @@ export default function CoordinatorLogin() {
           box-shadow: 0 0 25px rgba(241, 7, 163, 0.6);
         }
 
-        /* === ERROR TEXT === */
         .error-text {
           margin-top: 12px;
           color: #ff5c5c;

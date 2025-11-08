@@ -180,9 +180,10 @@
 //     </>
 //   );
 // }
-
+// src/components/NewEvent.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "./api"; // ✅ import centralized API helper
 
 export default function NewEvent() {
   const navigate = useNavigate();
@@ -192,7 +193,7 @@ export default function NewEvent() {
     branch: "",
     date: "",
     closeDate: "",
-    time:"", // ✅ Added close date
+    time: "",
     venue: "",
     description: "",
     type: "Individual",
@@ -215,7 +216,7 @@ export default function NewEvent() {
 
     // 🧠 Validation
     if (form.closeDate && new Date(form.closeDate) > new Date(form.date)) {
-      alert("⚠️ Close date cannot be before event date!");
+      alert("⚠️ Registration close date cannot be before event date!");
       return;
     }
 
@@ -227,26 +228,13 @@ export default function NewEvent() {
     };
 
     try {
-      const res = await fetch("http://localhost:5000/events/add", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(data),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        alert(`❌ Failed to submit event: ${err.message || "Server error"}`);
-        return;
-      }
-
+      // ✅ Use centralized API method
+      await api.createEvent(data, token);
       alert("✅ Event submitted to Admin!");
       navigate("/faculty-home");
     } catch (err) {
       console.error("Event submit error:", err);
-      alert("❌ Network error while submitting event");
+      alert(`❌ Failed to submit event: ${err.message}`);
     }
   };
 

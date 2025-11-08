@@ -1,5 +1,7 @@
+// src/components/CoordinatorHome.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "./api";
 
 export default function CoordinatorHome() {
   const navigate = useNavigate();
@@ -10,6 +12,7 @@ export default function CoordinatorHome() {
   const token = localStorage.getItem("token");
   const username = localStorage.getItem("username");
 
+  // Load approved events
   useEffect(() => {
     if (!token) {
       navigate("/coordinator-login");
@@ -21,16 +24,14 @@ export default function CoordinatorHome() {
   const loadEvents = async () => {
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5000/events");
-      const data = await res.json();
-
+      const data = await api.getEvents(token);
       const approvedEvents = data.filter(
         (ev) => ev.status?.toLowerCase() === "approved"
       );
-
       setEvents(approvedEvents);
     } catch (err) {
       console.error("Error loading events:", err);
+      alert("Failed to load events.");
     } finally {
       setLoading(false);
     }
@@ -41,23 +42,19 @@ export default function CoordinatorHome() {
     navigate("/coordinator-login");
   };
 
+  // ✅ Updated Export Logic (Uses api.exportRegistrations)
   const handleExport = async (eventId) => {
-    if (!window.confirm("Download registrations Excel for this event?")) return;
+    if (!window.confirm("Download registrations CSV for this event?")) return;
     setExporting(true);
 
     try {
-      const res = await fetch(
-        `http://localhost:5000/events/${eventId}/registrations/export`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const blob = await api.exportRegistrations(eventId, token);
 
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(`Failed to export: ${err.message || res.statusText}`);
+      if (!blob || blob.size === 0) {
+        alert("No registrations found for this event.");
         return;
       }
 
-      const blob = await res.blob();
       const filename = `registrations_${eventId}.csv`;
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -67,9 +64,11 @@ export default function CoordinatorHome() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
+
+      alert("Export successful ✅");
     } catch (err) {
       console.error("Export error:", err);
-      alert("Network error while exporting file.");
+      alert(`Failed to export registrations: ${err.message}`);
     } finally {
       setExporting(false);
     }
@@ -98,9 +97,8 @@ export default function CoordinatorHome() {
           color: #111827;
         }
 
-        /* Move the entire page to the right */
         .page-wrapper {
-          margin-left: 250px; /* Adjust this value to move the whole content */
+          margin-left: 250px;
           transition: all 0.4s ease;
         }
 
@@ -293,7 +291,7 @@ export default function CoordinatorHome() {
                     onClick={() => handleExport(ev._id)}
                     disabled={exporting}
                   >
-                    {exporting ? "Exporting..." : "📥 Download Registrations Excel"}
+                    {exporting ? "Exporting..." : "📥 Download Registrations CSV"}
                   </button>
                 </div>
               ))}

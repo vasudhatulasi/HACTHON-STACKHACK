@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "./StudentRegister.css";
+import { api } from "./api"; // ✅ Import your centralized API helper
 
 export default function StudentRegister({ onRegister }) {
   const [form, setForm] = useState({
@@ -18,7 +19,7 @@ export default function StudentRegister({ onRegister }) {
   const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
-    validateAll(); // live-validate as user types
+    validateAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form]);
 
@@ -49,7 +50,6 @@ export default function StudentRegister({ onRegister }) {
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
       errs.email = "Please enter a valid email address.";
 
-    // optional: branch length check
     if (form.branch && form.branch.length > 10)
       errs.branch = "Use an abbreviation (e.g. CSE, IT).";
 
@@ -74,35 +74,37 @@ export default function StudentRegister({ onRegister }) {
     setSuccessMsg("");
     const errs = validateAll();
     if (Object.keys(errs).length) {
-      setTouched({ username: true, password: true, roll: true, email: true, branch: true });
+      setTouched({
+        username: true,
+        password: true,
+        roll: true,
+        email: true,
+        branch: true,
+      });
       return;
     }
 
-   setLoading(true);
+    setLoading(true);
     try {
-   
-const headers = { "Content-Type": "application/json", Accept: "application/json" };
-     const token = localStorage.getItem("token");
-          if (token) headers.Authorization = `Bearer ${token}`;
-    const res = await fetch("http://localhost:5000/student/register", {
-      method: "POST",
-      headers,
-       body: JSON.stringify(form),
-});
+      const token = localStorage.getItem("token");
 
-      const data = await res.json();
+      // ✅ Use centralized request from api.js
+      const data = await apiRequest("/student/register", {
+        method: "POST",
+        body: form,
+        token,
+      });
+
       setLoading(false);
 
-      if (!res.ok) {
-        setGlobalError(data.message || "Registration failed. Please try again.");
-        return;
-      }
-
-      // success handling
       if (data.token) {
         localStorage.setItem("token", data.token);
-        localStorage.setItem("student", JSON.stringify({ username: data.username, role: data.role }));
+        localStorage.setItem(
+          "student",
+          JSON.stringify({ username: data.username, role: data.role })
+        );
       }
+
       setSuccessMsg("Registration successful — you're logged in!");
       setForm({
         name: "",
@@ -117,9 +119,29 @@ const headers = { "Content-Type": "application/json", Accept: "application/json"
       if (onRegister) onRegister(data);
     } catch (err) {
       console.error(err);
-      setGlobalError("Network error. Try again later.");
+      setGlobalError(err.message || "Registration failed. Try again later.");
       setLoading(false);
     }
+  };
+
+  // ✅ Helper function that uses same logic as your api.js
+  const apiRequest = async (endpoint, options) => {
+    const BASE_URL = "https://hacthon-stackhack.onrender.com";
+    const url = `${BASE_URL}${endpoint}`;
+    const headers = { "Content-Type": "application/json" };
+    if (options.token) headers.Authorization = `Bearer ${options.token}`;
+
+    const res = await fetch(url, {
+      method: options.method,
+      headers,
+      body: JSON.stringify(options.body),
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.message || res.statusText);
+    }
+    return data;
   };
 
   const pwStrength = passwordStrength(form.password);
@@ -129,7 +151,7 @@ const headers = { "Content-Type": "application/json", Accept: "application/json"
       <form className="sr-card" onSubmit={handleSubmit} noValidate aria-labelledby="sr-title">
         <div className="sr-header">
           <div className="sr-avatar" aria-hidden>
-            {form.name ? form.name.split(" ").map(n => n[0]).slice(0,2).join("") : "S"}
+            {form.name ? form.name.split(" ").map(n => n[0]).slice(0, 2).join("") : "S"}
           </div>
           <div>
             <h2 id="sr-title" className="sr-title">Student Register</h2>
@@ -149,7 +171,6 @@ const headers = { "Content-Type": "application/json", Accept: "application/json"
               onChange={handleChange}
               onBlur={handleBlur}
               placeholder="e.g. Priya Sharma"
-              aria-invalid={!!fieldErrors.name}
             />
             <small className="sr-hint">Optional — helps personalize your profile</small>
           </label>
@@ -163,7 +184,6 @@ const headers = { "Content-Type": "application/json", Accept: "application/json"
               onChange={handleChange}
               onBlur={handleBlur}
               placeholder="you@college.edu (optional)"
-              aria-invalid={!!fieldErrors.email}
             />
             {touched.email && fieldErrors.email && <div className="sr-error">{fieldErrors.email}</div>}
           </label>
@@ -177,7 +197,6 @@ const headers = { "Content-Type": "application/json", Accept: "application/json"
               onBlur={handleBlur}
               placeholder="choose a login id"
               aria-required="true"
-              aria-invalid={!!fieldErrors.username}
             />
             {touched.username && fieldErrors.username && <div className="sr-error">{fieldErrors.username}</div>}
           </label>
@@ -193,14 +212,11 @@ const headers = { "Content-Type": "application/json", Accept: "application/json"
                 onBlur={handleBlur}
                 placeholder="At least 6 characters"
                 aria-required="true"
-                aria-invalid={!!fieldErrors.password}
               />
               <button
                 type="button"
                 className="sr-toggle"
-                onClick={() => setShowPassword(s => !s)}
-                aria-pressed={showPassword}
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                onClick={() => setShowPassword((s) => !s)}
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
@@ -225,7 +241,6 @@ const headers = { "Content-Type": "application/json", Accept: "application/json"
               onBlur={handleBlur}
               placeholder="e.g. 18CSE123"
               aria-required="true"
-              aria-invalid={!!fieldErrors.roll}
             />
             {touched.roll && fieldErrors.roll && <div className="sr-error">{fieldErrors.roll}</div>}
           </label>
@@ -238,7 +253,6 @@ const headers = { "Content-Type": "application/json", Accept: "application/json"
               onChange={handleChange}
               onBlur={handleBlur}
               placeholder="CSE / IT / ECE"
-              aria-invalid={!!fieldErrors.branch}
             />
             {touched.branch && fieldErrors.branch && <div className="sr-error">{fieldErrors.branch}</div>}
           </label>
@@ -252,7 +266,14 @@ const headers = { "Content-Type": "application/json", Accept: "application/json"
             type="button"
             className="sr-btn sr-btn-ghost"
             onClick={() => {
-              setForm({ name: "", email: "", username: "", password: "", roll: "", branch: "" });
+              setForm({
+                name: "",
+                email: "",
+                username: "",
+                password: "",
+                roll: "",
+                branch: "",
+              });
               setFieldErrors({});
               setGlobalError("");
               setSuccessMsg("");

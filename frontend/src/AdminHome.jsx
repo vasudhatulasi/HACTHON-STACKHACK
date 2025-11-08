@@ -1,6 +1,7 @@
 // src/components/AdminHome.jsx
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "./api"; // ✅ Centralized API import
 import EditDateTimeModal from "./EditEvent.jsx";
 
 import {
@@ -25,17 +26,13 @@ export default function AdminHome() {
   const [search, setSearch] = useState("");
   const [registrationsModalOpen, setRegistrationsModalOpen] = useState(false);
   const [registrations, setRegistrations] = useState([]);
-  const [showEditModal, setShowEditModal] = useState(false);
-const [editingEvent, setEditingEvent] = useState(null);
-const [editDate, setEditDate] = useState("");
-const [editTime, setEditTime] = useState("");
-
   const [regsLoading, setRegsLoading] = useState(false);
   const [regsChartData, setRegsChartData] = useState([]);
+
   const token = localStorage.getItem("token");
   const username = localStorage.getItem("admin_username");
 
-  // Colors for pie
+  // Pie chart colors
   const COLORS = [
     "#4f46e5",
     "#06b6d4",
@@ -48,9 +45,8 @@ const [editTime, setEditTime] = useState("");
     "#f97316",
     "#0ea5e9",
   ];
-const handleBackToHome = () => {
-  navigate("/");
-};
+
+  const handleBackToHome = () => navigate("/");
 
   // Load events on mount
   useEffect(() => {
@@ -64,40 +60,28 @@ const handleBackToHome = () => {
 
   useEffect(() => {
     applyFilters();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events, filter, search]);
 
+  // ✅ Centralized API call for events
   const loadEvents = async () => {
     try {
       setLoading(true);
-      const res = await fetch("http://localhost:5000/events", {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
-      if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          localStorage.removeItem("token");
-          navigate("/admin-login");
-        }
-        throw new Error(`HTTP ${res.status}`);
-      }
-      const data = await res.json();
+      const data = await api.getEvents(token);
       setRawResponse(data);
+
       const arr = Array.isArray(data) ? data : data?.events ?? [];
-      const normalized = (arr || []).map((ev) => {
-        const title = ev.title ?? ev.name ?? "Untitled event";
-        const id = ev._id ?? ev.id ?? `${title}-${Math.random().toString(36).slice(2, 8)}`;
-        const status = (ev.status || ev.state || "pending").toString();
-        return {
-          ...ev,
-          _id: id,
-          title,
-          status,
-          statusNormalized: status.toLowerCase(),
-        };
-      });
+      const normalized = arr.map((ev) => ({
+        ...ev,
+        _id: ev._id ?? ev.id ?? `${ev.title}-${Math.random().toString(36).slice(2, 8)}`,
+        title: ev.title ?? ev.name ?? "Untitled event",
+        status: (ev.status || ev.state || "pending").toString(),
+        statusNormalized: (ev.status || ev.state || "pending").toLowerCase(),
+      }));
+
       const sorted = normalized.sort(
         (a, b) =>
-          new Date(b.createdAt || b._id).getTime() - new Date(a.createdAt || a._id).getTime()
+          new Date(b.createdAt || b._id).getTime() -
+          new Date(a.createdAt || a._id).getTime()
       );
       setEvents(sorted);
     } catch (err) {
@@ -109,10 +93,9 @@ const handleBackToHome = () => {
 
   const applyFilters = () => {
     let list = [...events];
-    if (filter !== "all") {
+    if (filter !== "all")
       list = list.filter((e) => (e.status || "").toLowerCase() === filter);
-    }
-    if (search && search.trim()) {
+    if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
         (ev) =>
@@ -124,10 +107,10 @@ const handleBackToHome = () => {
     setFilteredEvents(list);
   };
 
-  // Approve or Reject
+  // ✅ Approve / Reject using api.request
   const updateStatus = async (id, status) => {
     if (!token) {
-      alert("You must be logged in as admin to perform this action.");
+      alert("Login required");
       navigate("/admin-login");
       return;
     }
@@ -137,38 +120,24 @@ const handleBackToHome = () => {
     setUpdating(true);
     const prev = [...events];
     setEvents(events.map((e) => (e._id === id ? { ...e, status } : e)));
-    setSelected(null);
-
     try {
-      const res = await fetch(`http://localhost:5000/events/update/${id}`, {
+      await apiRequest(`/events/update/${id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status }),
+        token,
+        body: { status },
       });
-
-      if (!res.ok) {
-        setEvents(prev);
-        const err = await res.json().catch(() => ({}));
-        alert(`Failed to update: ${err.message || res.statusText}`);
-        return;
-      }
-
-      const data = await res.json();
-      setEvents((list) => list.map((e) => (e._id === id ? data : e)));
       alert(`Event ${status} ✅`);
+      loadEvents();
     } catch (err) {
-      console.error("Network error:", err);
+      console.error("Update error:", err);
       setEvents(prev);
-      alert("Network error while updating event status.");
+      alert(err.message || "Failed to update event status.");
     } finally {
       setUpdating(false);
     }
   };
 
-  // Export CSV
+  // ✅ Export CSV using api.exportRegistrations
   const handleExport = async (eventId) => {
     if (!token) {
       alert("Login required");
@@ -177,33 +146,21 @@ const handleBackToHome = () => {
     }
 
     if (!window.confirm("Download registrations CSV for this event?")) return;
+
     setExporting(true);
-
     try {
-      const res = await fetch(
-        `http://localhost:5000/events/${eventId}/registrations/export`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        alert(`Failed to export: ${err.message || res.statusText}`);
-        return;
-      }
-
-      const blob = await res.blob();
-      const filename = `registrations_${eventId}.csv`;
+      const blob = await api.exportRegistrations(eventId, token);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = filename;
+      a.download = `registrations_${eventId}.csv`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Export error:", err);
-      alert("Network error while exporting CSV.");
+      alert(err.message || "Export failed.");
     } finally {
       setExporting(false);
     }
@@ -215,53 +172,29 @@ const handleBackToHome = () => {
     navigate("/admin-login");
   };
 
-  const viewRegistrationsPage = (eventId) => {
-    // keep existing navigation as fallback
-    navigate(`/event-registrations/${eventId}`);
-  };
-
-  // OPEN REGISTRATIONS + PIE CHART
+  // ✅ Fetch registrations via api.getRegistrations
   const openRegistrationsModal = async (ev) => {
-    // ev = event object
     if (!ev) return;
     try {
       setRegsLoading(true);
-      setRegistrations([]);
-      setRegsChartData([]);
       setRegistrationsModalOpen(true);
-
-      const tok = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:5000/events/${ev._id}/registrations`, {
-        method: "GET",
-        headers: { ...(tok ? { Authorization: `Bearer ${tok}` } : {}) },
-      });
-      if (!res.ok) {
-        const txt = await res.text().catch(() => "");
-        alert("Failed to load registrations: " + (txt || res.status));
-        setRegsLoading(false);
-        return;
-      }
-      const data = await res.json();
+      const data = await api.getRegistrations(ev._id, token);
       const regs = Array.isArray(data) ? data : data.registrations || [];
       setRegistrations(regs);
 
-      // Build distribution by branch/department
       const counts = {};
       regs.forEach((r) => {
         const s = r.student || {};
-        // try multiple possible keys
         const branch =
-          (s.branch && String(s.branch).trim()) ||
-          (s.department && String(s.department).trim()) ||
-          (r.branch && String(r.branch).trim()) ||
-          (r.department && String(r.department).trim()) ||
-          (s.course && String(s.course).trim()) ||
+          s.branch ||
+          s.department ||
+          r.branch ||
+          r.department ||
+          s.course ||
           "Unknown";
-        const key = branch || "Unknown";
-        counts[key] = (counts[key] || 0) + 1;
+        counts[branch] = (counts[branch] || 0) + 1;
       });
 
-      // If there are zero regs, create a single Unknown entry with 0
       const chartData =
         Object.keys(counts).length > 0
           ? Object.entries(counts).map(([name, value]) => ({ name, value }))
@@ -270,7 +203,7 @@ const handleBackToHome = () => {
       setRegsChartData(chartData);
     } catch (err) {
       console.error("Error fetching registrations:", err);
-      alert("Network error loading registrations");
+      alert("Failed to load registrations");
     } finally {
       setRegsLoading(false);
     }
@@ -292,12 +225,11 @@ const handleBackToHome = () => {
 
   const counts = {
     total: events.length,
-    pending: events.filter((e) => (e.status || "").toLowerCase() === "pending").length,
-    approved: events.filter((e) => (e.status || "").toLowerCase() === "approved").length,
-    rejected: events.filter((e) => (e.status || "").toLowerCase() === "rejected").length,
+    pending: events.filter((e) => e.status?.toLowerCase() === "pending").length,
+    approved: events.filter((e) => e.status?.toLowerCase() === "approved").length,
+    rejected: events.filter((e) => e.status?.toLowerCase() === "rejected").length,
   };
 
-  // format date helper
   const formatDate = (d) => {
     try {
       if (!d) return "-";
@@ -308,6 +240,24 @@ const handleBackToHome = () => {
       return "-";
     }
   };
+
+  // ✅ local helper using same logic as api.js
+  const apiRequest = async (endpoint, options) => {
+    const BASE_URL = "https://hacthon-stackhack.onrender.com";
+    const url = `${BASE_URL}${endpoint}`;
+    const headers = { "Content-Type": "application/json" };
+    if (options.token) headers.Authorization = `Bearer ${options.token}`;
+    const res = await fetch(url, {
+      method: options.method,
+      headers,
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || res.statusText);
+    return data;
+  };
+
+
 
   return (
     <>

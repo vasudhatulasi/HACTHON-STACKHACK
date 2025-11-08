@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { api } from "./api"; // ✅ Import the centralized API helper
 
 export default function StudentHome() {
   const navigate = useNavigate();
@@ -17,12 +18,12 @@ export default function StudentHome() {
 
   const loadEvents = async () => {
     try {
-      const res = await fetch("http://localhost:5000/events");
-      const data = await res.json();
+      // ✅ Use the centralized API helper instead of direct fetch
+      const data = await api.getEvents(token);
 
       if (!Array.isArray(data)) return;
 
-      // ✅ Filter only approved events with forms (either formSchema or formLink)
+      // ✅ Filter only approved events with forms
       const filtered = data.filter(
         (ev) =>
           ev.status?.toLowerCase() === "approved" &&
@@ -46,21 +47,35 @@ export default function StudentHome() {
 
   const checkRegistration = async (eventId) => {
     try {
-      const res = await fetch(
-        `http://localhost:5000/events/${eventId}/registrations/check`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      if (!res.ok) return { registered: false };
-      const data = await res.json();
+      // ✅ Use the centralized request logic
+      const data = await apiRequest(`/events/${eventId}/registrations/check`, {
+        method: "GET",
+        token,
+      });
       return data;
     } catch (err) {
       console.error("Check error:", err);
       return { registered: false };
     }
+  };
+
+  // ✅ Local wrapper function (uses same logic as api.js)
+  const apiRequest = async (endpoint, options) => {
+    const BASE_URL = "https://hacthon-stackhack.onrender.com";
+    const url = `${BASE_URL}${endpoint}`;
+    const headers = { "Content-Type": "application/json" };
+    if (options.token) headers.Authorization = `Bearer ${options.token}`;
+
+    const res = await fetch(url, {
+      method: options.method,
+      headers,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || res.statusText);
+    }
+    return data;
   };
 
   const handleRegister = (ev) => {
@@ -99,7 +114,7 @@ export default function StudentHome() {
         }
 
         .student-wrapper {
-          max-width: 1000px;
+          max-width: 100vw;
           margin: 30px auto;
           padding: 20px;
           background: var(--card);
@@ -237,11 +252,10 @@ export default function StudentHome() {
           ) : (
             events.map((ev) => {
               const today = new Date();
-              today.setHours(0, 0, 0, 0); // normalize today's date
+              today.setHours(0, 0, 0, 0);
               const closeDate = ev.closeDate ? new Date(ev.closeDate) : null;
               if (closeDate) closeDate.setHours(0, 0, 0, 0);
-              
-              // ✅ Closed if no closeDate, or closeDate <= today
+
               const isClosed = !closeDate || closeDate <= today;
 
               return (
@@ -251,7 +265,7 @@ export default function StudentHome() {
                     <div className="event-meta">
                       📅 {ev.date || "Date: TBA"} <br />
                       📅 {ev.closeDate || "Closing date: Not disclosed"} <br />
-                      ⏰ {ev.time || "time is not allocated" } <br/>
+                      ⏰ {ev.time || "Time: Not allocated"} <br />
                       📍 {ev.venue || "Venue: TBA"} <br />
                       🏷️ Type: {ev.type || "Individual"}
                     </div>

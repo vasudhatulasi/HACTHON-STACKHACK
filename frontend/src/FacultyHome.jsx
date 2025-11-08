@@ -156,7 +156,7 @@ export default function FacultyHome() {
 
   const loadEvents = async () => {
     try {
-      const res = await fetch("http://localhost:5000/events");
+      const res = await fetch("https://hacthon-stackhack.onrender.com");
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
         throw new Error(`HTTP ${res.status} - ${txt}`);
@@ -209,7 +209,7 @@ export default function FacultyHome() {
       setRegistrations([]);
       setSelectedEventForRegs(ev);
       const tok = localStorage.getItem("token");
-      const res = await fetch(`http://localhost:5000/events/${ev._id}/registrations`, {
+      const res = await fetch(`https://hacthon-stackhack.onrender.com/events/${ev._id}/registrations`, {
         method: "GET",
         headers: { ...(tok ? { Authorization: `Bearer ${tok}` } : {}) },
       });
@@ -236,7 +236,7 @@ export default function FacultyHome() {
   const handleDownloadXlsx = async (ev) => {
     const token = localStorage.getItem("token");
     try {
-      const res = await fetch(`http://localhost:5000/events/${ev._id}/registrations/export-xlsx`, {
+      const res = await fetch(`https://hacthon-stackhack.onrender.com/events/${ev._id}/registrations/export-xlsx`, {
         method: "GET",
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
@@ -266,7 +266,7 @@ export default function FacultyHome() {
     if (!title) return;
     try {
       const tok = localStorage.getItem("token");
-      const res = await fetch("http://localhost:5000/events/add", {
+      const res = await fetch("https://hacthon-stackhack.onrender.com/events/add", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -633,22 +633,34 @@ export default function FacultyHome() {
 
                       <div className="footer">
                         <div className="venue">{ev.venue || "Venue: TBA"}</div>
+<div className="btn-group" style={{ justifyContent: "flex-end" }}>
+  {approved ? (
+    <button className="btn-small" onClick={() => handleEditForm(ev)}>
+      {ev.formSchema && ev.formSchema.length
+        ? "Edit Registration Form"
+        : "Create Registration Form"}
+    </button>
+  ) : (ev.statusNormalized || "").toLowerCase() === "rejected" ? (
+    <div className="locked" title="Event was rejected by admin">
+      ❌ Rejected — cannot edit
+    </div>
+  ) : (
+    <div className="locked" title="Forms locked until admin approval">
+      ⏳ Pending approval
+    </div>
+  )}
 
-                        <div className="btn-group" style={{ justifyContent: "flex-end" }}>
-                          {approved ? (
-                            <button className="btn-small" onClick={() => handleEditForm(ev)}>
-                              {ev.formSchema && ev.formSchema.length ? "Edit Registration Form" : "Create Registration Form"}
-                            </button>
-                          ) : (
-                            <div className="locked" title="Forms locked until admin approval">
-                              Forms locked — pending approval
-                            </div>
-                          )}
+  <button className="btn-small" onClick={() => handleViewRegistrations(ev)}>
+    Registrations
+  </button>
+  <button className="btn-small" onClick={() => handleDownloadXlsx(ev)}>
+    Download Excel
+  </button>
+  <button className="btn-small" onClick={() => navigate(`/event-details/${ev._id}`)}>
+    Details
+  </button>
+</div>
 
-                          <button className="btn-small" onClick={() => handleViewRegistrations(ev)}>Registrations</button>
-                          <button className="btn-small" onClick={() => handleDownloadXlsx(ev)}>Download Excel</button>
-                          <button className="btn-small" onClick={() => navigate(`/event-details/${ev._id}`)}>Details</button>
-                        </div>
                       </div>
                     </article>
                   );

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { api } from "./api"; // ✅ Import centralized API helper
 
 export default function StudentEventForm() {
   const { id } = useParams();
@@ -15,8 +16,8 @@ export default function StudentEventForm() {
 
   const loadEvent = async () => {
     try {
-      const res = await fetch(`http://localhost:5000/events`);
-      const all = await res.json();
+      // ✅ Use centralized API
+      const all = await api.getEvents(token);
       const found = Array.isArray(all)
         ? all.find((e) => e._id === id)
         : all.events?.find((e) => e._id === id);
@@ -54,28 +55,40 @@ export default function StudentEventForm() {
     e.preventDefault();
     if (!event) return;
     try {
-      const res = await fetch(`http://localhost:5000/events/${id}/register`, {
+      // ✅ Use centralized API `request` function for submission
+      const res = await apiRequest(`/events/${id}/register`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+        token,
+        body: {
           responses,
           student: { username },
-        }),
+        },
       });
-      const data = await res.json();
-      if (res.ok) {
-        alert("✅ Registration successful!");
-        navigate("/student-home");
-      } else {
-        alert(data.message || "Registration failed");
-      }
+
+      alert("✅ Registration successful!");
+      navigate("/student-home");
     } catch (err) {
       console.error("Error registering:", err);
-      alert("Network error submitting form");
+      alert(err.message || "Registration failed");
     }
+  };
+
+  // ✅ Local API wrapper (same logic as in api.js)
+  const apiRequest = async (endpoint, options) => {
+    const BASE_URL = "https://hacthon-stackhack.onrender.com";
+    const url = `${BASE_URL}${endpoint}`;
+    const headers = { "Content-Type": "application/json" };
+    if (options.token) headers.Authorization = `Bearer ${options.token}`;
+
+    const res = await fetch(url, {
+      method: options.method,
+      headers,
+      body: JSON.stringify(options.body),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || res.statusText);
+    return data;
   };
 
   if (!event)
@@ -113,7 +126,6 @@ export default function StudentEventForm() {
           align-items: center;
           padding: 40px 20px;
           background: var(--bg);
-
         }
 
         .form-shell {
